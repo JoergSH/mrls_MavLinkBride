@@ -10,12 +10,12 @@ Basiert auf [mLRS Wireless Bridge](https://github.com/olliw42/mLRS) von OlliW.
 
 ## Unterstützte Modi / Supported Modes
 
-| Protocol | Name         | Beschreibung / Description              | Status          |
-| -------- | ------------ | --------------------------------------- | --------------- |
-| 1        | WiFi UDP AP  | Air Unit erstellt WLAN / creates WiFi   | ✅ Works        |
-| 2        | WiFi UDP STA | Ground Unit verbindet / connects to AP  | ✅ Works        |
-| 6        | ESP-NOW LR   | ESP-NOW Long Range (~500m+)             | ✅ Works        |
-| 8        | ESP-NOW STD  | ESP-NOW Standard (~100m)                | ✅ Works        |
+| Protocol | Name         | Beschreibung / Description             | Status   |
+| -------- | ------------ | -------------------------------------- | -------- |
+| 1        | WiFi UDP AP  | Air Unit erstellt WLAN / creates WiFi  | ✅ Works |
+| 2        | WiFi UDP STA | Ground Unit verbindet / connects to AP | ✅ Works |
+| 6        | ESP-NOW LR   | ESP-NOW Long Range (~500m+)            | ✅ Works |
+| 8        | ESP-NOW STD  | ESP-NOW Standard (~100m)               | ✅ Works |
 
 ---
 
@@ -27,12 +27,12 @@ Basiert auf [mLRS Wireless Bridge](https://github.com/olliw42/mLRS) von OlliW.
 
 ### Pinbelegung / Pinout ESP32-C3 Super Mini
 
-| Funktion / Function   | GPIO   |
-| --------------------- | ------ |
-| Serial RX (from FC)   | GPIO20 |
-| Serial TX (to FC)     | GPIO21 |
-| LED                   | GPIO8  |
-| Boot/Unpair Button    | GPIO9  |
+| Funktion / Function | GPIO   |
+| ------------------- | ------ |
+| Serial RX (from FC) | GPIO20 |
+| Serial TX (to FC)   | GPIO21 |
+| LED                 | GPIO8  |
+| Boot/Unpair Button  | GPIO9  |
 
 ---
 
@@ -79,10 +79,10 @@ pio device monitor -e air_unit_espnow
 
 ## LED Status
 
-| LED                  | Deutsch                | English              |
-| -------------------- | ---------------------- | -------------------- |
-| Schnelles Blinken    | Keine Verbindung       | No connection        |
-| Langsames Blinken    | Verbunden              | Connected            |
+| LED               | Deutsch          | English       |
+| ----------------- | ---------------- | ------------- |
+| Schnelles Blinken | Keine Verbindung | No connection |
+| Langsames Blinken | Verbunden        | Connected     |
 
 - Fast blink (200ms) = No connection
 - Slow blink (500ms) = Connected
@@ -95,6 +95,7 @@ pio device monitor -e air_unit_espnow
 
 **Deutsch:**
 Beim ersten Start verbinden sich Air Unit und Ground Unit automatisch:
+
 1. Beide Units starten im "Unpaired" Modus
 2. Die erste Unit die ein Paket empfängt, speichert die MAC-Adresse des Senders
 3. Ab dann kommunizieren nur noch diese beiden Units miteinander
@@ -102,6 +103,7 @@ Beim ersten Start verbinden sich Air Unit und Ground Unit automatisch:
 
 **English:**
 On first start, Air Unit and Ground Unit connect automatically:
+
 1. Both units start in "Unpaired" mode
 2. The first unit to receive a packet saves the sender's MAC address
 3. From then on, only these two units communicate with each other
@@ -135,11 +137,13 @@ pio run -e ground_unit_espnow -t erase -t upload
 ### WiFi Mode
 
 **Deutsch:**
+
 1. QGC öffnen
 2. Mit WLAN "MAVLink-Air" verbinden (Passwort: mavlink123)
 3. QGC verbindet automatisch über UDP Port 14550
 
 **English:**
+
 1. Open QGC
 2. Connect to WiFi "MAVLink-Air" (Password: mavlink123)
 3. QGC connects automatically via UDP Port 14550
@@ -147,12 +151,14 @@ pio run -e ground_unit_espnow -t erase -t upload
 ### ESP-NOW Mode
 
 **Deutsch:**
+
 1. Ground Unit per USB an PC/Tablet anschließen
 2. QGC → Comm Links → Add → Serial
 3. COM Port der Ground Unit auswählen
 4. Baud Rate: 115200
 
 **English:**
+
 1. Connect Ground Unit via USB to PC/Tablet
 2. QGC → Comm Links → Add → Serial
 3. Select COM port of Ground Unit
@@ -210,16 +216,52 @@ int port_udp = 14550;              // UDP port (QGC default)
 
 ---
 
+## RSSI / Signalstärke Telemetrie
+
+### ESP-NOW RSSI in Mission Planner / QGroundControl
+
+**Deutsch:**
+Bei ESP-NOW Verbindungen wird die Signalstärke (RSSI) automatisch als MAVLink RADIO_STATUS Nachricht übertragen. In Mission Planner/QGC kann der SNR-Wert (Signal-to-Noise-Ratio) angezeigt werden.
+
+**English:**
+For ESP-NOW connections, signal strength (RSSI) is automatically transmitted as MAVLink RADIO_STATUS message. In Mission Planner/QGC, the SNR value (Signal-to-Noise-Ratio) can be displayed.
+
+### Mission Planner Anzeige / Display
+
+| Feld / Field    | Beschreibung / Description                      |
+| --------------- | ----------------------------------------------- |
+| `localsnrdb`    | Signalstärke in dB / Signal strength in dB      |
+| `linkqualitygcs`| Paket-Erfolgsrate / Packet success rate         |
+
+**Typische RSSI Werte / Typical RSSI values:**
+
+| RSSI (dBm) | Qualität / Quality |
+| ---------- | ------------------ |
+| -30 to -50 | Sehr gut / Excellent |
+| -50 to -70 | Gut / Good |
+| -70 to -85 | Mittel / Medium |
+| -85 to -95 | Schwach / Weak |
+
+### SNR in Mission Planner einblenden / Show SNR in Mission Planner
+
+1. Rechtsklick auf HUD → "User Items"
+2. "localsnrdb" aktivieren
+3. Wert erscheint im HUD
+
+---
+
 ## Troubleshooting
 
 ### LEDs blinken schnell / LEDs blink fast
 
 **Deutsch:**
+
 - Beide Units mit gleichem Protokoll flashen
 - `erase` verwenden um alte Einstellungen zu löschen
 - Bei gepairten Units: Unpair auf beiden durchführen
 
 **English:**
+
 - Flash both units with same protocol
 - Use `erase` to clear old settings
 - For paired units: Unpair both

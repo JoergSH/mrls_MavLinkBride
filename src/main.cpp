@@ -267,6 +267,11 @@ volatile uint8_t espnow_rx_buf[ESPNOW_RX_BUF_SIZE];
 volatile uint16_t espnow_rx_head = 0;
 volatile uint16_t espnow_rx_tail = 0;
 
+// RSSI tracking for MAVLink RADIO_STATUS
+volatile int8_t espnow_rssi = 0;  // Current RSSI from last received packet
+unsigned long espnow_rssi_tlast_ms = 0;
+#define ESPNOW_RSSI_INTERVAL 1000  // Send RADIO_STATUS every 1 second
+
 // Check if MAC is broadcast address
 bool espnow_is_broadcast(const uint8_t* mac) {
     for (int i = 0; i < 6; i++) {
@@ -320,6 +325,11 @@ void espnow_recv_cb(const esp_now_recv_info_t *recv_info, const uint8_t *data, i
         }
     }
 
+    // Read RSSI from received packet
+    if (recv_info->rx_ctrl) {
+        espnow_rssi = recv_info->rx_ctrl->rssi;
+    }
+
     extern bool is_connected;
     extern unsigned long is_connected_tlast_ms;
     is_connected = true;
@@ -344,6 +354,69 @@ int espnow_read(uint8_t* buf, int maxlen) {
         espnow_rx_tail = (espnow_rx_tail + 1) % ESPNOW_RX_BUF_SIZE;
     }
     return count;
+}
+
+// MAVLink RADIO_STATUS message (ID 109)
+// Sends RSSI information to ground control station
+uint8_t mavlink_seq = 0;
+
+void send_mavlink_radio_status(int8_t rssi) {
+    // MAVLink 1.0 RADIO_STATUS message
+    // Header: 0xFE, len, seq, sysid, compid, msgid
+    // Payload: rxerrors(2), fixed(2), rssi(1), remrssi(1), txbuf(1), noise(1), remnoise(1)
+
+    uint8_t msg[17];
+
+    // Header
+    msg[0] = 0xFE;  // MAVLink 1.0 start
+    msg[1] = 9;     // Payload length
+    msg[2] = mavlink_seq++;
+    msg[3] = 51;    // System ID (use 51 for radio modem)
+    msg[4] = 68;    // Component ID (TELEMETRY_RADIO)
+    msg[5] = 109;   // Message ID: RADIO_STATUS
+
+    // Payload
+    msg[6] = 0;     // rxerrors low byte
+    msg[7] = 0;     // rxerrors high byte
+    msg[8] = 0;     // fixed low byte
+    msg[9] = 0;     // fixed high byte
+
+    // Convert dBm to 0-254 scale
+    // ESP-NOW typical range: -30 dBm (excellent) to -90 dBm (weak)
+    // Scale: -90 dBm = 40, -30 dBm = 220
+    // Formula: rssi_scaled = (rssi + 90) * 3 + 40
+    int16_t rssi_scaled = (rssi + 90) * 3 + 40;
+    if (rssi_scaled < 0) rssi_scaled = 0;
+    if (rssi_scaled > 254) rssi_scaled = 254;
+
+    // Noise floor: typical WiFi noise is around -95 dBm
+    // Scale same way: (-95 + 90) * 3 + 40 = 25
+    uint8_t noise_scaled = 25;
+
+    msg[10] = (uint8_t)rssi_scaled;  // rssi (local)
+    msg[11] = (uint8_t)rssi_scaled;  // remrssi (remote, same as local for now)
+    msg[12] = 100;                    // txbuf (100% free)
+    msg[13] = noise_scaled;           // noise (floor)
+    msg[14] = noise_scaled;           // remnoise
+
+    // Calculate checksum (CRC-16/MCRF4XX)
+    uint16_t crc = 0xFFFF;
+    for (int i = 1; i <= 14; i++) {
+        uint8_t tmp = msg[i] ^ (crc & 0xFF);
+        tmp ^= (tmp << 4);
+        crc = (crc >> 8) ^ (tmp << 8) ^ (tmp << 3) ^ (tmp >> 4);
+    }
+    // Include CRC_EXTRA for RADIO_STATUS (185)
+    uint8_t crc_extra = 185;
+    uint8_t tmp = crc_extra ^ (crc & 0xFF);
+    tmp ^= (tmp << 4);
+    crc = (crc >> 8) ^ (tmp << 8) ^ (tmp << 3) ^ (tmp >> 4);
+
+    msg[15] = crc & 0xFF;
+    msg[16] = crc >> 8;
+
+    // Send to serial (to FC or GCS)
+    SERIAL.write(msg, 17);
 }
 #endif // USE_WIRELESS_PROTOCOL_ESPNOW
 
@@ -1401,6 +1474,12 @@ if (g_protocol == WIRELESS_PROTOCOL_ESPNOW || g_protocol == WIRELESS_PROTOCOL_ES
                 esp_now_send(espnow_peer_mac, buf, len);
             }
         }
+    }
+
+    // Send MAVLink RADIO_STATUS with RSSI periodically
+    if (is_connected && (tnow_ms - espnow_rssi_tlast_ms) > ESPNOW_RSSI_INTERVAL) {
+        espnow_rssi_tlast_ms = tnow_ms;
+        send_mavlink_radio_status(espnow_rssi);
     }
 
 #endif // USE_WIRELESS_PROTOCOL_ESPNOW
